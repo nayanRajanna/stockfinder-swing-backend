@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07101c">
+<title>StockFinder Swing</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#07101c;color:#edf5ff;font-family:system-ui,-apple-system,sans-serif}
+header{height:70px;padding:0 5%;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #1b2b3d;position:sticky;top:0;background:#07101cf5}
+.brand{font-weight:900;letter-spacing:1px}.brand span{color:#63e6a5}.status{color:#9aacbf;font-size:14px}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#e6a15c;margin-right:7px}.ok .dot{background:#63e6a5}
+main{max-width:1200px;margin:auto;padding:28px 5% 110px}.hero{display:flex;justify-content:space-between;align-items:center;gap:25px}.eyebrow{color:#63e6a5;font-size:12px;font-weight:900;letter-spacing:1.4px}.hero h1{font-size:clamp(34px,5vw,60px);margin:8px 0}.hero p{color:#98aabd;font-size:17px;max-width:700px}
+button{background:#63e6a5;color:#06110d;border:0;border-radius:12px;padding:13px 18px;font-weight:900;font-size:15px}button:disabled{opacity:.5}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:25px}.card,.setup{background:#0c1826;border:1px solid #1b2b3d;border-radius:18px}.metric{padding:20px}.metric small{color:#8fa2b7;font-weight:800}.metric strong{display:block;font-size:28px;margin:8px 0}.metric span{color:#8fa2b7}
+h2{font-size:22px;margin:25px 0 12px}.scanner,.connector,.disclaimer{padding:20px;margin-top:18px}.row{display:flex;gap:10px}input{flex:1;background:#07101c;border:1px solid #2b4055;color:#fff;border-radius:12px;padding:14px;font-size:16px}.result{margin-top:16px;background:#08121f;border-radius:14px;padding:17px;color:#a9bacb;min-height:70px}
+.watch{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.setup{padding:18px}.setup b{font-size:17px}.setup span{display:block;color:#63e6a5;margin:8px 0}.setup strong{font-size:25px}
+.connector p,.disclaimer{color:#93a6ba}.disclaimer{font-size:13px}
+nav{position:fixed;bottom:0;left:0;right:0;height:72px;background:#08121ff5;border-top:1px solid #1b2b3d;display:flex;justify-content:center;gap:clamp(20px,8vw,90px);z-index:10}nav button{background:transparent;color:#91a4b8;padding:8px 15px;font-size:22px}nav small{display:block;font-size:11px;color:#91a4b8}nav button.active,nav button.active small{color:#63e6a5}
+@media(max-width:700px){.grid,.watch{grid-template-columns:1fr 1fr}.hero{display:block}.hero button{margin-top:12px}}@media(max-width:450px){.grid,.watch{grid-template-columns:1fr}.row{flex-direction:column}}
+</style>
+</head>
+<body>
+<header><div class="brand">STOCKFINDER <span>SWING</span></div><div id="status" class="status"><span class="dot"></span>Offline</div></header>
+<main>
+<section class="hero"><div><div class="eyebrow">PERSONAL SWING TRADING</div><h1>Find the strongest setups.</h1><p>Technical signals, patterns, score and AI explanation — designed for your tablet.</p></div><button onclick="refreshStatus()">↻ Refresh</button></section>
+<section class="grid">
+<div class="card metric"><small>MARKET</small><strong id="market">—</strong><span>NSE / BSE</span></div>
+<div class="card metric"><small>TOP SETUPS</small><strong id="setups">—</strong><span>Scanner</span></div>
+<div class="card metric"><small>GROWW</small><strong id="groww">—</strong><span>Connector</span></div>
+</section>
+<section class="card scanner"><h2>🔎 Quick Scanner</h2><div class="row"><input id="symbol" value="RELIANCE" placeholder="NSE symbol"><button onclick="scan()">SCAN</button></div><div id="result" class="result">Connect the Groww backend to scan live data.</div></section>
+<h2>🔥 Swing Watch</h2>
+<div class="watch">
+<div class="setup"><b>RELIANCE</b><span>Breakout</span><strong>92/100</strong></div>
+<div class="setup"><b>TCS</b><span>Pullback</span><strong>88/100</strong></div>
+<div class="setup"><b>ICICIBANK</b><span>Ascending Triangle</span><strong>86/100</strong></div>
+<div class="setup"><b>HDFCBANK</b><span>Momentum</span><strong>84/100</strong></div>
+</div>
+<section class="card connector"><h2>☁️ Groww Daily Connector</h2><p id="connectorText">Your Groww credentials stay on the private backend — never in this page.</p><button onclick="connectGroww()">Generate / Reconnect</button></section>
+<section class="disclaimer"><b>Research tool:</b> Scores are not guaranteed predictions. Backtest before risking money.</section>
+</main>
+<nav><button class="active" onclick="topPage()">⌂<small>Home</small></button><button onclick="document.querySelector('.scanner').scrollIntoView({behavior:'smooth'})">⌕<small>Scanner</small></button><button>☆<small>Watchlist</small></button><button onclick="document.querySelector('.connector').scrollIntoView({behavior:'smooth'})">☁<small>Groww</small></button></nav>
+<script>
+const BACKEND="https://stockfinder-swing-backend.onrender.com";
+
+async function api(path,opt){
+  if(!BACKEND)throw Error("Backend not configured");
+  const r=await fetch(BACKEND+path,opt);
+  if(!r.ok)throw Error(await r.text());
+  return r.json();
+}
+
+async function refreshStatus(){
+  if(!BACKEND){
+    setText("status","Offline");
+    setText("groww","SETUP");
+    return;
+  }
+  try{
+    const s=await api("/api/connector/status");
+    const ok=s.status==="connected";
+    document.getElementById("status").innerHTML='<span class="dot"></span>'+(ok?"Connected":s.status);
+    document.getElementById("status").className="status "+(ok?"ok":"");
+    setText("groww",ok?"LIVE":"OFFLINE");
+    setText("market",ok?"READY":"—");
+    setText("setups",ok?"LIVE":"—");
+  }catch(e){
+    document.getElementById("status").innerHTML='<span class="dot"></span>Offline';
+    document.getElementById("status").className="status";
+    setText("groww","OFFLINE");
+    setText("market","—");
+    setText("setups","—");
+  }
+}
+
+async function scan(){
+  const sym=document.getElementById("symbol").value.trim().toUpperCase();
+  const out=document.getElementById("result");
+
+  if(!sym)return;
+
+  out.textContent="Scanning…";
+
+  try{
+    const r=await api("/api/scan/"+encodeURIComponent(sym)+"?exchange=NSE");
+
+    const reasons=Array.isArray(r.reasons)
+      ? r.reasons.map(x=>"• "+x).join("<br>")
+      : (r.reasons || "—");
+
+    out.innerHTML=`
+      <b style="font-size:20px">${r.symbol || sym}</b>
+      <br>
+      <span style="color:#63e6a5;font-size:28px;font-weight:900">
+        ${r.score ?? "—"}/100
+      </span>
+      • ${r.pattern || "—"}
+      <br><br>
+      <b>Price:</b> ₹${r.price ?? "—"}
+      &nbsp; • &nbsp;
+      <b>RSI:</b> ${r.rsi ?? "—"}
+      <br>
+      <b>Volume:</b> ${r.volume_ratio ?? "—"}×
+      &nbsp; • &nbsp;
+      <b>EMA20:</b> ${r.ema20 ?? "—"}
+      <br>
+      <b>EMA50:</b> ${r.ema50 ?? "—"}
+      &nbsp; • &nbsp;
+      <b>EMA200:</b> ${r.ema200 ?? "—"}
+      <br>
+      <b>MACD:</b> ${r.macd ?? "—"}
+      &nbsp; • &nbsp;
+      <b>ATR:</b> ${r.atr ?? "—"}
+      <br><br>
+      <b>Reasons:</b><br>${reasons}
+    `;
+  }catch(e){
+    console.error(e);
+    out.textContent="Unable to fetch live stock data. Please try again.";
+  }
+}
+
+async function connectGroww(){
+  document.getElementById("connectorText").textContent="Connecting…";
+  try{
+    await api("/api/connector/totp",{method:"POST"});
+    document.getElementById("connectorText").textContent="Connected. Daily Groww approval may be required.";
+    refreshStatus();
+  }catch(e){
+    document.getElementById("connectorText").textContent="Backend not connected yet. Do not enter your Groww secret here.";
+  }
+}
+
+function setText(id,t){
+  document.getElementById(id).textContent=t;
+}
+
+function topPage(){
+  scrollTo({top:0,behavior:"smooth"});
+}
+
+refreshStatus();
+</script>
+</body>
+</html>
