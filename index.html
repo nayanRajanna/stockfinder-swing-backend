@@ -122,8 +122,7 @@ async function scan(){
 
 async function connectGroww(){
   document.getElementById("connectorText").textContent="Connecting…";
-  try{
-    await api("/api/connector/totp",{method:"POST"});
+  try{await api("/api/connector/refresh",{method:"POST",body:{}});
     document.getElementById("connectorText").textContent="Connected. Daily Groww approval may be required.";
     refreshStatus();
   }catch(e){
